@@ -3,14 +3,27 @@ import os
 from player import Player
 from enemy import Enemy
 from projectile import Projectile
+from collectible import *
 import random
 
 pygame.init()
+
+health_bar_width = 100
+health_bar_height = 10
 
 win_width, win_height = 640, 360
 win = pygame.display.set_mode((win_width, win_height))
 pygame.display.set_caption("Running, Jumping, Backing, and Idling Character")
 
+display_message_timer_lv1 = 0
+display_message_timer_lv2 = 0
+display_message_timer_lv3 = 0
+display_message_duration = 3
+display_message_text = "LEVEL 1"
+
+# (Các biến và hình ảnh khác)
+
+current_frame = 0
 run_animation_images = [pygame.image.load(os.path.join('images', f'running_{i}.png')) for i in range(1, 10)]
 back_animation_images = [pygame.transform.flip(image, True, False) for image in run_animation_images]
 jump_animation_images = [pygame.image.load(os.path.join('images', f'jump_{i}.png')) for i in range(1, 14)]
@@ -20,22 +33,15 @@ idle_left_animation_images = [pygame.transform.flip(image, True, False) for imag
 shoot_animation_images = [pygame.image.load(os.path.join('images', f'shoot_{i}.png')) for i in range(1, 4)]
 shoot_left_animation_images = [pygame.transform.flip(image, True, False) for image in shoot_animation_images]
 
-life_image = pygame.image.load(os.path.join('images', "lives.png"))
-life_image = pygame.transform.scale(life_image, (37, 50))
 
-current_frame = 0
-
-player = Player(50, 250, 40, 60)
+player = Player(50, 250, 40, 60,
+                run_animation_images, back_animation_images, jump_animation_images,
+                jump_back_animation_images, idle_animation_images, idle_left_animation_images,
+                shoot_animation_images, shoot_left_animation_images)
 projectiles = []
 
-background = pygame.image.load(os.path.join('images', "background.webp"))
-background = pygame.transform.scale(background, (win_width, win_height))
-
-health_bar_width = 100
-health_bar_height = 10
-health_bar_color = (0, 255, 0)
-
-life_spacing = 10
+life_image = pygame.image.load(os.path.join('images', "lives.png"))
+life_image = pygame.transform.scale(life_image, (37, 50))
 
 clock = pygame.time.Clock()
 fps = 20
@@ -43,22 +49,47 @@ fps = 20
 enemies = []
 enemy_spawn_timer = 0
 enemy_spawn_delay = random.randint(30, 60)
-
-def spawn_enemy():
+def spawn_enemy(type):
     x = random.randint(50, win_width - 50)
-    y = win_height - 90
+    if type == 'walk':
+        y = win_height - 90
+    else: y = -20
     width = 35
     height = 35
     health = 50
     speed = random.uniform(1, 2)
 
-    enemy = Enemy(x, y, width, height, health, speed)
-    enemy.player_x = player.x
+    if type == 'walk':
+        enemy = Enemy('walk', x, y, width, height, 30, speed)
+    elif type == 'fly':
+        enemy = Enemy('fly', x, y, width, height, 20, speed)
+    else:
+        enemy = Enemy('boss', x, y, 120, 100, 70, 2)
     enemies.append(enemy)
 
 run = True
 
 while run:
+    if (player.level == 1 and display_message_timer_lv1 <= display_message_duration * fps) \
+            or (player.level == 2 and display_message_timer_lv2 <= display_message_duration * fps)\
+            or (player.level == 3 and display_message_timer_lv3 <= display_message_duration * fps):
+        font_large = pygame.font.Font(None, 72)
+        if player.level == 1:
+            level_up_text = font_large.render("LEVEL 1", True, (255, 255, 255))
+        elif player.level == 2:
+            level_up_text = font_large.render("LEVEL 2", True, (255, 255, 255))
+        else:
+            level_up_text = font_large.render("LEVEL 3", True, (255, 255, 255))
+        text_rect = level_up_text.get_rect(center=(win_width // 2, win_height // 2))
+        win.blit(level_up_text, text_rect)
+        if player.level == 1:
+            display_message_timer_lv1 += 1
+        elif player.level == 2:
+            display_message_timer_lv2 += 1
+        else:
+            display_message_timer_lv3 += 1
+        pygame.display.update()
+
     clock.tick(fps)
 
     for event in pygame.event.get():
@@ -67,7 +98,13 @@ while run:
 
     keys = pygame.key.get_pressed()
 
+    background = pygame.image.load(os.path.join('images', "background.webp"))
     win.blit(background, (0, 0))
+
+    if keys[pygame.K_SPACE] and player.can_shoot:
+        direction = player.last_direction
+        projectiles.append(Projectile(player.x + player.width // 2, player.y + player.height // 2, direction))
+        player.can_shoot = False
 
     projectiles = [projectile for projectile in projectiles if 0 < projectile.x < win_width]
 
@@ -75,11 +112,21 @@ while run:
         if not enemy.is_dead:
             enemy.update_direction(player.x)
             enemy.appear()
-            enemy.move()
+            enemy.move(player.y)
             if enemy.appear_done:
-                pygame.draw.rect(win, (0, 0, 255), (enemy.x, enemy.y - 10, enemy.width, 5))
-                pygame.draw.rect(win, (255, 0, 0), (enemy.x, enemy.y - 10, max(0, enemy.health), 5))
-                pygame.draw.rect(win, (0, 255, 0), (enemy.x, enemy.y - 10, max(0, enemy.health), 5))
+                if enemy.type == 'walk':
+                    pygame.draw.rect(win, (0, 0, 255), (enemy.x + 5, enemy.y - 10, 30, 5))
+                    pygame.draw.rect(win, (255, 0, 0), (enemy.x + 5, enemy.y - 10, max(0, enemy.health), 5))
+                    pygame.draw.rect(win, (0, 255, 0), (enemy.x + 5, enemy.y - 10, max(0, enemy.health), 5))
+                elif enemy.type == 'fly':
+                    pygame.draw.rect(win, (0, 0, 255), (enemy.x + 10, enemy.y, 20, 5))
+                    pygame.draw.rect(win, (255, 0, 0), (enemy.x + 10, enemy.y, max(0, enemy.health), 5))
+                    pygame.draw.rect(win, (0, 255, 0), (enemy.x + 10, enemy.y, max(0, enemy.health), 5))
+                else:
+                    pygame.draw.rect(win, (0, 0, 255), (enemy.x + 30, enemy.y - 5, 70, 5))
+                    pygame.draw.rect(win, (255, 0, 0), (enemy.x + 30, enemy.y - 5, max(0, enemy.health), 5))
+                    pygame.draw.rect(win, (0, 255, 0), (enemy.x + 30, enemy.y - 5, max(0, enemy.health), 5))
+
             win.blit(enemy.image, (enemy.x, enemy.y))
 
     for enemy in enemies:
@@ -103,90 +150,99 @@ while run:
 
         for enemy in enemies:
             if (
-                enemy.appear_done
-                and not enemy.is_dead
-                and enemy.x < projectile.x < enemy.x + enemy.width
-                and enemy.y < projectile.y < enemy.y + enemy.height
+            enemy.appear_done
+            and not enemy.is_dead
+            and enemy.x < projectile.x < enemy.x + enemy.width
+            and enemy.y < projectile.y < enemy.y + enemy.height
             ):
-                enemy.update_health(10)
-                if enemy.health <= 0:
-                    enemy.is_dead = True
+                enemy.update_health(player, 10)
 
                 if projectile in projectiles:
                     projectiles.remove(projectile)
 
-    if keys[pygame.K_LEFT]:
-        player.move_left()
-
-    if keys[pygame.K_RIGHT]:
-        player.move_right(win_width)
-
-    if keys[pygame.K_UP]:
-        player.jump()
-
-    if keys[pygame.K_SPACE] and player.can_shoot:
-        direction = player.last_direction
-        projectiles.append(Projectile(player.x + player.width // 2, player.y + player.height // 2, direction))
-        player.can_shoot = False
-
-    if not keys[pygame.K_SPACE]:
-        player.can_shoot = True
-
-    if player.isJump:
-        player.handle_jump()
-
-    if keys[pygame.K_RIGHT] and not player.isJump:
-        player.last_direction = 1
-        if keys[pygame.K_SPACE]:
-            current_frame = (current_frame  + 1) % len(shoot_animation_images)
-            win.blit(shoot_animation_images[current_frame], (player.x, player.y))
-        else:
-            win.blit(run_animation_images[current_frame], (player.x, player.y))
-    elif keys[pygame.K_LEFT] and not player.isJump:
-        player.last_direction = -1
-        if keys[pygame.K_SPACE]:
-            current_frame = (current_frame ) % len(shoot_left_animation_images)
-            win.blit(shoot_left_animation_images[current_frame], (player.x, player.y))
-        else:
-            win.blit(back_animation_images[current_frame], (player.x, player.y))
-    elif keys[pygame.K_RIGHT] and player.isJump:
-        player.last_direction = 1
-        win.blit(jump_animation_images[current_frame], (player.x, player.y))
-    elif keys[pygame.K_LEFT] and player.isJump:
-        player.last_direction = -1
-        win.blit(jump_back_animation_images[current_frame], (player.x, player.y))
-    elif player.isJump:
-        if player.last_direction == 1:
-            win.blit(jump_animation_images[current_frame], (player.x, player.y))
-        else:
-            win.blit(jump_back_animation_images[current_frame], (player.x, player.y))
-    else:
-        if keys[pygame.K_SPACE]:
-            current_frame = (current_frame + 1) % len(shoot_animation_images)
-            if player.last_direction == 1:
-                win.blit  (shoot_animation_images[current_frame], (player.x, player.y))
-            else:
-                win.blit(shoot_left_animation_images[current_frame], (player.x, player.y))
-        elif player.last_direction == 1:
-            win.blit(idle_animation_images[current_frame], (player.x, player.y))
-        else:
-            win.blit(idle_left_animation_images[current_frame], (player.x, player.y))
-
-    current_frame = (current_frame + 1) % 9
+    player.update(win, win_width, keys)
 
     pygame.draw.rect(win, (255, 0, 0), (10, 10, health_bar_width, health_bar_height))
-    pygame.draw.rect(win, health_bar_color, (10, 10, player.health, health_bar_height))
+    pygame.draw.rect(win, (0, 255, 0), (10, 10, player.health, health_bar_height))
 
     for i in range(player.lives):
-        win.blit(life_image, (win_width - 600 - i * (10 + life_spacing), 10))
-
-    pygame.display.update()
+        win.blit(life_image, (win_width - 640 + i * 20, 10))
 
     enemy_spawn_timer += 1
-    if enemy_spawn_timer >= enemy_spawn_delay:
-        if len(enemies) < 10:
-            spawn_enemy()
-        enemy_spawn_timer = 0
-        enemy_spawn_delay = random.randint(30, 60)
+    if player.level == 1:
+        if enemy_spawn_timer >= enemy_spawn_delay:
+            if len(enemies) < 15:
+                spawn_enemy('walk')
+            enemy_spawn_timer = 0
+            enemy_spawn_delay = random.randint(30, 60)
+
+            if len(enemies) > 0 and all(enemy.appear_done and enemy.is_dead for enemy in enemies):
+                player.level = 2
+                enemies.clear()
+
+    if player.level == 2:
+        if enemy_spawn_timer >= enemy_spawn_delay:
+            if len(enemies) < 20:
+                spawn_enemy('fly')
+            enemy_spawn_timer = 0
+            enemy_spawn_delay = random.randint(30, 60)
+
+            if len(enemies) > 0 and all(enemy.appear_done and enemy.is_dead for enemy in enemies):
+                player.level = 3
+                enemies.clear()
+
+    if player.level == 3 and player.win == False:
+        if enemy_spawn_timer >= enemy_spawn_delay:
+            if len(enemies) < 40:
+                spawn_enemy('walk')
+                spawn_enemy('fly')
+                spawn_enemy('fly')
+            enemy_spawn_timer = 0
+            enemy_spawn_delay = random.randint(30, 60)
+
+            if player.win == False and len(enemies) > 0 and all(enemy.appear_done and enemy.type != 'boss' and enemy.is_dead for enemy in enemies):
+                spawn_enemy('boss')
+
+            if player.win == False and any(enemy.type == 'boss' and enemy.is_dead for enemy in enemies):
+                player.win = True
+                enemies.clear()
+
+    spawn_collectible(player)
+    update_and_draw_collectibles(win, player)
+    handle_collectible_collision(player)
+
+    font = pygame.font.SysFont(None,25)
+    score_text = font.render(f"Score: {player.score}", True, (255, 255, 255))
+    level_text = font.render(f"Level: {player.level}", True, (255, 255, 255))
+
+    win.blit(score_text, (550, 10))
+    win.blit(level_text, (550, 40))
+
+
+    # Check if player has lost all lives
+    if player.lives <= 0 or player.win == True:
+        win.fill((0, 0, 0))
+        font = pygame.font.SysFont(None, 50)
+        if player.win == False:
+            final_text = font.render("LOSE", True, (255, 0, 0))
+        else:
+            final_text = font.render("WIN", True, (255, 0, 0))
+        score_text = font.render(f"Score: {player.score}", True, (255, 255, 255))
+        prompt_text = font.render("Play again? (Y/N)", True, (255, 255, 255))
+        win.blit(final_text,
+                 (win_width // 2 - final_text.get_width() // 2, win_height // 2 - final_text.get_height() // 2))
+        win.blit(score_text, (win_width // 2 - score_text.get_width() // 2, win_height // 2 + 50))
+        win.blit(prompt_text, (win_width // 2 - prompt_text.get_width() // 2, win_height // 2 + 100))
+
+        # Handle player input for playing again
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_y]:
+            # Reset game state and restart the game
+            player.reset(enemies)  # Implement reset() method in Player class to reset player state
+            # Reset enemies, score, etc.
+        elif keys[pygame.K_n]:
+            run = False  # Quit the game if the player doesn't want to play again
+
+    pygame.display.update()
 
 pygame.quit()

@@ -8,7 +8,7 @@ class Projectile:
         self.x = x
         self.y = y - 5
         self.direction = 1
-        self.vel = 10 * direction
+        self.vel = 7 * direction
         self.width = 10
         self.height = 10
         self.images = [pygame.image.load(os.path.join('images', f'bullet_{i}.png')) for i in range(1, 6)]
