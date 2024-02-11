@@ -53,7 +53,7 @@ class Collectible:
 def spawn_collectible(player):
     global collectibles
 
-    # Randomize the position on the x-axis
+    # The position on the x-axis
     x = 300
 
     # Randomly choose the type of collectible (health_boost or extra_life)

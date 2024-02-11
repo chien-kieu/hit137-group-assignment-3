@@ -24,6 +24,7 @@ class Player:
         self.collision_cooldown_timer = 0
         self.current_frame = 0
 
+        # Animation images
         self.run_animation_images = run_animation_images
         self.back_animation_images = back_animation_images
         self.jump_animation_images = jump_animation_images
@@ -36,8 +37,9 @@ class Player:
         self.level = 1
         self.score = 0
         self.extra_life = False
-
         self.win = False
+
+    # Method to handle collision with enemies
     def handle_collision(self, fps):
         if self.collision_timer <= 0:
             self.update_health(10)
@@ -45,9 +47,11 @@ class Player:
         else:
             self.collision_timer -= 1 / fps
 
+    # Method to move the player left
     def move_left(self):
         self.x -= self.vel
 
+    # Method to move the player right
     def move_right(self, win_width):
         self.x += self.vel
         if self.x > win_width - self.width:
@@ -57,6 +61,7 @@ class Player:
         if not self.isJump:
             self.isJump = True
 
+    # Method to make the player jump
     def handle_jump(self):
         if self.jumpCount >= -10:
             neg = 1
@@ -74,6 +79,8 @@ class Player:
             self.lives -= 1
             if self.lives > 0:
                 self.health = 100
+
+    # Method to update player's animation and handle player's movement
     def update_animation(self, win, win_width, keys):
         if keys[pygame.K_LEFT]:
             if self.x > 0:
@@ -127,17 +134,14 @@ class Player:
 
         self.current_frame = (self.current_frame + 1) % 9
 
+    # Method to update player's state
     def update(self, win, win_width, keys):
-        self.update_animation(win, win_width, keys)
+        self.update_animation(win, win_width, keys)  # Update player's animation and movement
 
         if not keys[pygame.K_SPACE]:
-            self.can_shoot = True
+            self.can_shoot = True  # Set player's ability to shoot
 
-    def draw(self, win):
-        flipped_image = pygame.transform.flip(self.idle_animation_images[self.current_frame],
-                                              self.last_direction == -1, False)
-        win.blit(flipped_image, (self.x, self.y))
-
+    # Method to reset player's state
     def reset(self, enemies):
         # Reset all player attributes to their initial values
         self.x = 50
